@@ -5,7 +5,9 @@ EYE TRACKING DATA PREPROCESSING FOR GROWTH CURVE ANALYSIS
 These scripts were developed for the eye tracking time course analysis (multi-level models/growth curve)
 presented in **Althaus, Kotzor, Schuster & Lahiri (2022)**. Distinct orthography boosts morphophonological discrimination: 
 Vowel raising in Bengali verb inflections. *Cognition, 222*, 104963.  
-They are intended for "sample report" exports from EyeLink/DataViewer.  Exported files need to be placed in subdirectory ./Data. 
+https://doi.org/10.1016/j.cognition.2021.104963
+
+
 
 The experiment is a visual world paradigm with two visual targets (match=target vs. nonmatch=distracter). On each trial, 
 the participant hears a fragment of a word and has to decide which of two words (presented visually) the fragment corresponds to.
@@ -21,3 +23,7 @@ effects of condition separately, due to non-convergence of models containing bot
 demonstrate these, respectively (for Distracter-First trials, the procedure is equivalent). 
 
 The scripts will have to be adapted slightly for new studies, in particular if using different settings/parameters.
+
+
+These scripts are intended for "sample report" exports from EyeLink/DataViewer.  Exported files need to be placed in subdirectory ./Data. 
+Preprocessing using MainWorkflow.py is to be run before modelling in R.
