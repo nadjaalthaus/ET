@@ -39,8 +39,9 @@ datadir='./Data'
 #file holding instructions about how to treat individual variables during downsampling, e.g. use first value / use average value etc.
 Instructionsfile=datadir+'/Instructions.csv'
 
-#initialise data frame that will hold all data (wide format), one trial per line
+#initialise data frame that will hold all data (wide format/long format)
 WData=pd.DataFrame()
+LData=pd.DataFrame()
 
 #switches to easily enforce re-doing individual preprocessing steps;
 #if set to False then these steps are only run if a file with the corresponding name does not yet exist in datadir
@@ -152,6 +153,14 @@ for entry in D:
         else:
             print('wide format exists, skip formatting...')
 
+        # append to data frame that contains all long data
+        ldata=pd.read_csv(datadir+'/'+ stem +'_ds_cln_tardis_lk_frst.csv')
+        if LData.shape[0]==0:
+            LData=ldata
+        else:
+            print('appending...')
+            LData=pd.concat([LData, ldata], axis=0, ignore_index=True)
+
 
         #append to data frame that contains all wide data
         wdata=pd.read_csv(datadir+'/'+ stem +'_ds_cln_tardis_lk_frst_wide.csv')
@@ -159,7 +168,9 @@ for entry in D:
             WData=wdata
         else:
             print('appending...')
-            WData=WData.append(wdata, ignore_index=True)
+            WData=pd.concat([WData,wdata], axis=0,ignore_index=True)
+
+
 
 #WData contains all data, one trial per line
 print('***')
@@ -170,3 +181,4 @@ WData=WData[WData['condition']!='Practice']
 WData.reset_index(drop=True)
 print('Number of trials for analysis: '+ str(WData.shape[0]))
 WData.to_csv(datadir+'/VRFCwide.csv')
+LData.to_csv(datadir+'/VRFClong.csv')
