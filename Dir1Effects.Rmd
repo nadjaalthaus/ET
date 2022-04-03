@@ -1,0 +1,242 @@
+In this file we're modelling effects of the Direction of first fixation.
+The design has three conditions, but here we are interested in testing, for each condition separately, whether the trials differ depending on whether target or distracter was fixated first. Since looking typically occurs in a top-down sequence, and 50% of trials had the target at the top, this leads to an approximate 50-50 split. As we show in Althaus et al. (2022), the target-first / distracter-first trials are far apart if the trial is easy to decide (target maintains looking, distracter is rejected quickly) whereas they are indistinguishable if the trial cannot be decided (No Diff condition here, where target and distracter are equally good matches for the auditory stimulus).  
+
+
+
+
+Load the libraries:
+
+```{r libraries}
+library(ggplot2)
+library(MASS)
+library(lme4)
+library(reshape2)
+library(multcomp)
+
+```
+
+Load the data:
+
+```{r dataloading}
+
+
+setwd("./Data")
+
+Data=read.csv("LongData.csv",  header=TRUE, stringsAsFactors=FALSE)
+
+```
+
+More prepping (extra variables, removal of practice trials)
+
+```{r dataprepping.vars}
+
+#create extra variables
+Data$Time<-Data$TIMESTAMP-Data$TRIAL_START_TIME
+Data$Slot<-round(Data$SAMPLE_INDEX/20)+1
+#probability of looking at the item that was first fixated
+Data$ProbFirst=Data$First/Data$NSamples
+
+#remove practice trials
+Data<-subset(Data, condition!="Practice")
+
+
+```
+
+Now, select the time window for modelling. This requires some visual inspection. The main point is to avoid intervals during which the data are asymptotic as that won't work well for polynomials, and the idea is to start the fit at a point when the majority of trials have looking (i.e. the first fixation has been landed). We found the latency to first fixation not to be predictive in this paradigm, presumably because it is very fast and potentially automatic towards the top item.
+
+```{r dataprepping.timeslots}
+Data<-subset(Data, Time>1199)
+Data<-subset(Data, Time<2201)
+Data$Slot<-Data$Slot-60 #make sure first slot is 1
+#51 slots remain
+
+```
+
+
+Next we create time terms for polynomials up to 4th order (ot orthogonal, Tb non-orthogonal, cf. Mirman 2014, the latter needed only for plotting -- all modelling happens with orthogonal polynomials)
+
+```{r dataprepping.polynomialtimeterms}
+t<-poly(unique(Data$Slot),4)
+Data[,paste("ot",1:4,sep="")] <- t[Data$Slot,1:4]
+
+Tb <- cbind(Data$Slot/10, (Data$Slot/10)^2,(Data$Slot/10)^3,(Data$Slot/10)^4)
+Data$Tb1<-Tb[,1]
+Data$Tb2<-Tb[,2]
+Data$Tb3<-Tb[,3]
+Data$Tb4<-Tb[,4]
+
+```
+
+
+
+Housekeeping: the next lines are crucial to ensure that glmer can exclude 0s properly
+
+```{r dataprepping.tidy}
+Data$NSamp[is.na(Data$NSamp)]<-NA
+Data$First[is.na(Data$First)]<-NA
+Data$NSamp[Data$NSamp==0]<-NA
+Data$First[is.na(Data$NSamp)]<-NA
+
+
+Data$condition<-as.factor(Data$condition)
+Data$targetmorph<-as.factor(Data$targetmorph)
+Data$Dir1<-as.factor(Data$Dir1)
+```
+
+We start with hierarchical model fitting for the No Diff condition. Here, as in the other two conditions below, we begin with a base condition that only includes time terms and random effects. We then add fixed factors and interactions with the time terms in a step-wise fashion. After all models are finished, we run a model comparison. 
+
+
+
+```{r  modelling.NoDiff}
+
+Data_NoDiff<-subset(Data, condition=='No_diff')
+
+
+bengali.nodiff.base<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4)  + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 +  (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1+ Dir1:ot2+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4  + targetmorph + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4)  + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4)  + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+
+bengali.nodiff.dir.morph.inter<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1*targetmorph + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.inter<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1*targetmorph + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.inter.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1:targetmorph + Dir1:targetmorph:ot1+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.inter.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ot2:Dir1:targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.inter.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ot2:Dir1:targetmorph+ot3:Dir1:targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+bengali.nodiff.dir.morph.inter.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1+ Dir1:ot1 + Dir1:ot2 +Dir1:ot3 + Dir1:ot4 + targetmorph +targetmorph:ot1 +targetmorph:ot2+targetmorph:ot3 + targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ot2:Dir1:targetmorph+ot3:Dir1:targetmorph+ot4:Dir1:targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_NoDiff)
+
+```
+
+
+```{r modelcomparison.NoDiff}
+anova(bengali.nodiff.base, bengali.nodiff.dir, bengali.nodiff.dir.ot1, bengali.nodiff.dir.ot2, bengali.nodiff.dir.ot3, bengali.nodiff.dir.ot4, bengali.nodiff.dir.morph, bengali.nodiff.dir.morph.ot1, bengali.nodiff.dir.morph.ot2, bengali.nodiff.dir.morph.ot3, bengali.nodiff.dir.morph.ot4, bengali.nodiff.dir.morph.inter, bengali.nodiff.dir.morph.inter.ot1, bengali.nodiff.dir.morph.inter.ot2, bengali.nodiff.dir.morph.inter.ot3, bengali.nodiff.dir.morph.inter.ot4)
+```
+
+
+We repeat the same for the PronDiff condition.
+
+```{r PronDiff}
+
+Data_PronDiff<-subset(Data, condition=='Pron_diff')
+
+
+bengali.prondiff.base<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4)  + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3 +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 ++Dir1:ot3+ Dir1:ot4 + targetmorph+ targetmorph:ot1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3 +Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 +targetmorph:ot2 + targetmorph:ot3 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.inter<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + Dir1:targetmorph + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.inter.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.inter.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ ot2:Dir1:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+bengali.prondiff.dir.morph.inter.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ ot2:Dir1:targetmorph+ ot3:Dir1:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+
+bengali.prondiff.dir.morph.inter.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + Dir1:ot1 + Dir1:ot2 +Dir1:ot3+Dir1:ot4 + targetmorph+ targetmorph:ot1 + targetmorph:ot2 +targetmorph:ot3  +targetmorph:ot4 + Dir1:targetmorph + ot1:Dir1:targetmorph+ ot2:Dir1:targetmorph+ ot3:Dir1:targetmorph + ot4:Dir1:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_PronDiff)
+
+
+
+```
+
+```{r}
+anova(bengali.prondiff.base, bengali.prondiff.dir, bengali.prondiff.dir.ot1, bengali.prondiff.dir.ot2, bengali.prondiff.dir.ot3, bengali.prondiff.dir.ot4, bengali.prondiff.dir.morph, bengali.prondiff.dir.morph.ot1, bengali.prondiff.dir.morph.ot2, bengali.prondiff.dir.morph.ot3, bengali.prondiff.dir.morph.ot4, bengali.prondiff.dir.morph.inter, bengali.prondiff.dir.morph.inter.ot1, bengali.prondiff.dir.morph.inter.ot2, bengali.prondiff.dir.morph.inter.ot3, bengali.prondiff.dir.morph.inter.ot4)
+```
+
+
+
+We repeat the same for the OrthDiff condition.
+
+
+```{r OrthDiff}
+
+Data_OrthDiff<-subset(Data, condition=='Orth_diff')
+
+
+bengali.orthdiff.base<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4)  + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 +Dir1:ot1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 +Dir1:ot1 + Dir1:ot2 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 +Dir1:ot1 + Dir1:ot2 + Dir1:ot3 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + Dir1 +Dir1:ot1 + Dir1:ot2 + Dir1:ot3 +Dir1:ot4 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+
+bengali.orthdiff.dir.morph<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+
+bengali.orthdiff.dir.morph.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+
+bengali.orthdiff.dir.morph.inter<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 +
+targetmorph:Dir1 +                                        (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.inter.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 +
+targetmorph:Dir1 +  ot1:targetmorph:Dir1 +                                     (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.inter.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 +
+targetmorph:Dir1 +  ot1:targetmorph:Dir1 +     ot2:targetmorph:Dir1 +                                 (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.inter.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 +
+targetmorph:Dir1 +  ot1:targetmorph:Dir1 +ot2:targetmorph:Dir1 +  ot3:targetmorph:Dir1 +    (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+bengali.orthdiff.dir.morph.inter.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) * Dir1 +targetmorph+ targetmorph:ot1 +targetmorph:ot2 +targetmorph:ot3 +targetmorph:ot4 +
+targetmorph:Dir1 +  ot1:targetmorph:Dir1 +ot2:targetmorph:Dir1 +  ot3:targetmorph:Dir1 + ot4:targetmorph:Dir1 +   (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data_OrthDiff)
+
+```
+
+
+```{r}
+anova(bengali.orthdiff.base, bengali.orthdiff.dir, bengali.orthdiff.dir.ot1, bengali.orthdiff.dir.ot2, bengali.orthdiff.dir.ot3, bengali.orthdiff.dir.ot4, bengali.orthdiff.dir.morph, bengali.orthdiff.dir.morph.ot1, bengali.orthdiff.dir.morph.ot2, bengali.orthdiff.dir.morph.ot3, bengali.orthdiff.dir.morph.ot4, bengali.orthdiff.dir.morph.inter, bengali.orthdiff.dir.morph.inter.ot1, bengali.orthdiff.dir.morph.inter.ot2, bengali.orthdiff.dir.morph.inter.ot3, bengali.orthdiff.dir.morph.inter.ot4)
+```
+

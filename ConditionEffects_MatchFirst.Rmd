@@ -1,0 +1,159 @@
+
+
+
+In this file we're modelling effects of Condition for match-first trials.
+
+
+Load libraries
+
+```{r libraries}
+library(ggplot2)
+library(MASS)
+library(lme4)
+library(reshape2)
+library(multcomp)
+
+```
+
+Load the data:
+
+```{r dataloading}
+
+
+
+
+
+Data=read.csv("LongData.csv",  header=TRUE, stringsAsFactors=FALSE)
+
+```
+
+
+Prepping (extra variables, removal of practice trials)
+
+```{r dataprepping}
+
+
+Data$Time<-Data$TIMESTAMP-Data$TRIAL_START_TIME
+Data$Slot<-round(Data$SAMPLE_INDEX/20)+1
+Data$ProbFirst=Data$First/Data$NSamples
+
+
+Data<-subset(Data, condition!="Practice")
+```
+
+
+Now, select the time window for modelling. This requires some visual inspection. The main point is to avoid intervals during which the data are asymptotic as that won't work well for polynomials, and the idea is to start the fit at a point when the majority of trials have looking (i.e. the first fixation has been landed). We found the latency to first fixation not to be predictive in this paradigm, presumably because it is very fast and potentially automatic towards the top item.
+
+```{r dataprepping.timeslots}
+
+
+Data<-subset(Data, Time>1199)
+Data<-subset(Data, Time<2201)
+Data$Slot<-Data$Slot-60
+#51 slots remain
+
+```
+
+Next we create time terms for polynomials up to 4th order (ot orthogonal, Tb non-orthogonal, cf. Mirman 2014, the latter needed only for plotting -- all modelling happens with orthogonal polynomials)
+
+
+```{r dataprepping.polynomialtimeterms}
+
+t<-poly(unique(Data$Slot),4)
+Data[,paste("ot",1:4,sep="")] <- t[Data$Slot,1:4]
+
+Tb <- cbind(Data$Slot/10, (Data$Slot/10)^2,(Data$Slot/10)^3,(Data$Slot/10)^4)
+Data$Tb1<-Tb[,1]
+Data$Tb2<-Tb[,2]
+Data$Tb3<-Tb[,3]
+Data$Tb4<-Tb[,4]
+```
+
+
+Housekeeping: the next lines are crucial to ensure that glmer can exclude 0s properly
+
+```{r dataprepping.tidy}
+Data$NSamp[is.na(Data$NSamp)]<-NA
+Data$First[is.na(Data$First)]<-NA
+Data$NSamp[Data$NSamp==0]<-NA
+Data$First[is.na(Data$NSamp)]<-NA
+
+
+Data$condition<-as.factor(Data$condition)
+Data$targetmorph<-as.factor(Data$targetmorph)
+#Data$Spec<-as.factor(Data$Spec)
+Data$Dir1<-as.factor(Data$Dir1)
+
+```
+
+
+```{r dataprepping.selectmachfirst}
+Data<-subset(Data, Dir1==1)
+
+```
+
+
+Hierarchical model fitting for the match-first trials. We begin with a base condition that only includes time terms and random effects. We then add fixed factors and interactions with the time terms in a step-wise fashion. After all models are finished, we run a model comparison. 
+
+
+
+
+```{r model.fitting.MF}
+
+bengali.MF.base<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3 +ot4) + (1|SUBJECTNO) + (1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+
+bengali.MF.cond<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) +  condition + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+
+bengali.MF.cond.person<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph + +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph + +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.inter<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+condition:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.inter.ot1<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+condition:targetmorph + ot1:condition:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.inter.ot2<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+condition:targetmorph + ot1:condition:targetmorph+ ot2:condition:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.inter.ot3<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+condition:targetmorph + ot1:condition:targetmorph+ ot2:condition:targetmorph +ot3:condition:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+bengali.MF.cond.person.inter.ot4<-glmer(cbind(First, NSamp - First) ~ (ot1 + ot2 + ot3+ot4) + condition + ot1:condition+ ot2:condition + ot3:condition + ot4:condition + targetmorph +ot1:targetmorph +ot2:targetmorph +ot3:targetmorph+ot4:targetmorph+condition:targetmorph + ot1:condition:targetmorph+ ot2:condition:targetmorph +ot3:condition:targetmorph +ot4:condition:targetmorph +(1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+
+```
+
+Model comparison:
+
+```{r model.comparison.MF}
+anova(bengali.MF.base, bengali.MF.cond, bengali.MF.cond.ot1, bengali.MF.cond.ot2, bengali.MF.cond.ot3, bengali.MF.cond.ot4, bengali.MF.cond.person, bengali.MF.cond.person.ot1, bengali.MF.cond.person.ot2, bengali.MF.cond.person.ot3, bengali.MF.cond.person.ot4, bengali.MF.cond.person.inter, bengali.MF.cond.person.inter.ot1, bengali.MF.cond.person.inter.ot2,bengali.MF.cond.person.inter.ot3, bengali.MF.cond.person.inter.ot4)
+```
+
+Fit the final best model with non-orthogonal polynomials for plotting.
+
+
+
+```{r bestfit.Tb}
+
+mod<-glmer(cbind(First, NSamp - First) ~ (Tb1 + Tb2 + Tb3+Tb4) *  condition * targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+
+
+```
+
+
+
