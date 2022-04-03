@@ -1,4 +1,4 @@
-EYE TRACKING DATA PREPROCESSING FOR GROWTH CURVE ANALYSIS 
+EYE TRACKING DATA PREPROCESSING AND MODELLING FOR GROWTH CURVE ANALYSIS 
 
 (C) Nadja Althaus
 
@@ -23,7 +23,6 @@ effects of condition separately, due to non-convergence of models containing bot
 demonstrate these, respectively (for Distracter-First trials, the procedure is equivalent). 
 
 The scripts will have to be adapted slightly for new studies, in particular if using different settings/parameters.
-
 
 These scripts are intended for "sample report" exports from EyeLink/DataViewer.  Exported files need to be placed in subdirectory ./Data. 
 Preprocessing using MainWorkflow.py is to be run before modelling in R.

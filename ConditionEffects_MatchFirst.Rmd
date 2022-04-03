@@ -1,7 +1,13 @@
 
 
+GROWTH CURVE ANALYSIS FOR VISUAL WORLD EYE TRACKING DATA                          
+(C) NADJA ALTHAUS, 2022 https://github.com/nadjaalthaus                                                        
+                                                                                                              
+Developed for preprocessing EyeLink sample reports for growth curve analysis      for Althaus, Kotzor, Schuster & Lahiri (2022). Distinct orthography boosts morphophonological discrimination: Vowel raising in Bengali verb inflections. Cognition, 222, 104963.
+https://doi.org/10.1016/j.cognition.2021.104963          
 
-In this file we're modelling effects of Condition for match-first trials.
+
+In this file we construct growth curve models to capture effects of Condition for match-first trials.
 
 
 Load libraries
