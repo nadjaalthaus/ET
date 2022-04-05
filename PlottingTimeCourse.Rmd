@@ -1,0 +1,277 @@
+GROWTH CURVE ANALYSIS FOR VISUAL WORLD EYE TRACKING DATA                          
+(C) NADJA ALTHAUS, 2022 https://github.com/nadjaalthaus                                                        
+                                                                                                              
+Developed for preprocessing EyeLink sample reports for growth curve analysis      for Althaus, Kotzor, Schuster & Lahiri (2022). Distinct orthography boosts morphophonological discrimination: Vowel raising in Bengali verb inflections. Cognition, 222, 104963.
+https://doi.org/10.1016/j.cognition.2021.104963          
+
+
+
+This script picks up where the modelling script ended. 
+This code is written to produce Figure 4 in Althaus et al. (2022), i.e. the model investigating Condition effects for match-first trials only (the corresponding plot for non-match-first trials can easily be obtained by using the model and data for those trials instead).
+Assuming we have now produced the final model using natural polynomials:
+
+
+```{r}
+Data=read.csv("LongData.csv",  header=TRUE, stringsAsFactors=FALSE)
+```
+
+
+
+```{r bestfit.Tb}
+
+mod<-glmer(cbind(First, NSamp - First) ~ (Tb1 + Tb2 + Tb3+Tb4) *  condition * targetmorph+ (1|SUBJECTNO)+(1|targettranscript),control=glmerControl(optimizer="bobyqa"),family = binomial, na.action = na.omit, data=Data)
+
+
+
+```
+
+
+
+
+We need to define a few variables for the plots, x to hold the x-coordinate for our 51 time slots and x4 to hold corresponding values for the 4 polynomials.
+
+
+```{r PlottingDims}
+x <- c(1:51)
+#x4 <- cbind(x/10, (x/10)^2,(x/10)^3)
+x4 <- cbind(x/10, (x/10)^2,(x/10)^3, (x/10)^4)
+xslots<-51
+
+
+```
+
+Now we produce predictions from the best-fitting model for each individual condition (one set of predictions per combination of condition (No_diff, Pron_diff, Orth_diff) and morphological form (1st vs. 3rd person). 
+
+```{r predictionsAndPlottingPrep}
+
+
+Pred.No_diff.1.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("No_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(1, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+Pred.No_diff.3.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("No_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(3, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+
+Pred.Orth_diff.1.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("Orth_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(1, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+Pred.Orth_diff.3.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("Orth_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(3, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+Pred.Pron_diff.1.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("Pron_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(1, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+Pred.Pron_diff.3.mf<-predict(mod, data.frame(Tb1 = x4[,1],Tb2 = x4[,2], Tb3 = x4[,3],Tb4 = x4[,4], condition = factor("Pron_diff",levels=c("No_diff", "Orth_diff", "Pron_diff")),  targetmorph = factor(3, levels=c(1,3))), re.form=NA, na.action=na.omit)
+
+
+```
+
+Since the model itself deals with log odds ratios, we now have to transform the predictions back to probabilities for the purpose of plotting:
+
+
+```{r odds}
+odds.No_diff.1.mf <-exp(Pred.No_diff.1.mf)
+odds.No_diff.3.mf <-exp(Pred.No_diff.3.mf)
+
+odds.Orth_diff.1.mf <-exp(Pred.Orth_diff.1.mf)
+odds.Orth_diff.3.mf <-exp(Pred.Orth_diff.3.mf)
+
+
+odds.Pron_diff.1.mf <-exp(Pred.Pron_diff.1.mf)
+odds.Pron_diff.3.mf <-exp(Pred.Pron_diff.3.mf)
+
+
+```
+
+```{r probs}
+
+prob.No_diff.1.mf<-odds.No_diff.1.mf/(1+odds.No_diff.1.mf)
+prob.No_diff.3.mf<-odds.No_diff.3.mf/(1+odds.No_diff.3.mf)
+
+prob.Orth_diff.1.mf<-odds.Orth_diff.1.mf/(1+odds.Orth_diff.1.mf)
+prob.Orth_diff.3.mf<-odds.Orth_diff.3.mf/(1+odds.Orth_diff.3.mf)
+
+prob.Pron_diff.1.mf<-odds.Pron_diff.1.mf/(1+odds.Pron_diff.1.mf)
+prob.Pron_diff.3.mf<-odds.Pron_diff.3.mf/(1+odds.Pron_diff.3.mf)
+```
+
+In order to plot not just the model, but also the real data, we first split the data into subsets:
+
+```{r datasubsets}
+
+Data.No_diff.1.mf<-subset(BengData, (condition=="No_diff" & targetmorph==1))
+Data.No_diff.3.mf<-subset(BengData, (condition=="No_diff" & targetmorph==3))
+ 
+Data.Orth_diff.3.mf<-subset(BengData, (condition=="Orth_diff" & targetmorph==3))
+Data.Orth_diff.1.mf<-subset(BengData, (condition=="Orth_diff" & targetmorph==1))
+
+Data.Pron_diff.3.mf<-subset(BengData, (condition=="Pron_diff" & targetmorph==3))
+Data.Pron_diff.1.mf<-subset(BengData, (condition=="Pron_diff" & targetmorph==1))
+
+```
+
+Now we use tapply to pull out the average proportion of looking at the first-fixated item for each time slot:
+
+```{r points4plot}
+Point.No_diff.1.mf<-tapply(Data.No_diff.1.mf$First/Data.No_diff.1.mf$NSamp,Data.No_diff.1.mf$Slot,mean,na.rm=T)
+Point.No_diff.3.mf<-tapply(Data.No_diff.3.mf$First/Data.No_diff.3.mf$NSamp,Data.No_diff.3.mf$Slot,mean,na.rm=T)
+
+
+Point.Orth_diff.1.mf<-tapply(Data.Orth_diff.1.mf$First/Data.Orth_diff.1.mf$NSamp,Data.Orth_diff.1.mf$Slot,mean,na.rm=T)
+Point.Orth_diff.3.mf<-tapply(Data.Orth_diff.3.mf$First/Data.Orth_diff.3.mf$NSamp,Data.Orth_diff.3.mf$Slot,mean,na.rm=T)
+
+
+Point.Pron_diff.1.mf<-tapply(Data.Pron_diff.1.mf$First/Data.Pron_diff.1.mf$NSamp,Data.Pron_diff.1.mf$Slot,mean,na.rm=T)
+Point.Pron_diff.3.mf<-tapply(Data.Pron_diff.3.mf$First/Data.Pron_diff.3.mf$NSamp,Data.Pron_diff.3.mf$Slot,mean,na.rm=T)
+
+```
+
+Next we calculate the standard deviation and standard error in similar fashion, using tapply/sapply:
+
+```{r sd}
+SD.No_diff.1.mf <-tapply(Data.No_diff.1.mf$First/Data.No_diff.1.mf$NSamp,Data.No_diff.1.mf$Slot,sd, na.rm=T)
+s<-split(Data.No_diff.1.mf$First/Data.No_diff.1.mf$NSamp,Data.No_diff.1.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.No_diff.1.mf<-SD.No_diff.1.mf/sqrt(n)
+  
+SD.No_diff.3.mf <-tapply(Data.No_diff.3.mf$First/Data.No_diff.3.mf$NSamp,Data.No_diff.3.mf$Slot,sd, na.rm=T)
+s<-split(Data.No_diff.3.mf$First/Data.No_diff.3.mf$NSamp,Data.No_diff.3.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.No_diff.3.mf<-SD.No_diff.3.mf/sqrt(n)
+
+
+
+SD.Orth_diff.1.mf <-tapply(Data.Orth_diff.1.mf$First/Data.Orth_diff.1.mf$NSamp,Data.Orth_diff.1.mf$Slot,sd, na.rm=T)
+s<-split(Data.Orth_diff.1.mf$First/Data.Orth_diff.1.mf$NSamp,Data.Orth_diff.1.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.Orth_diff.1.mf<-SD.Orth_diff.1.mf/sqrt(n)
+  
+SD.Orth_diff.3.mf <-tapply(Data.Orth_diff.3.mf$First/Data.Orth_diff.3.mf$NSamp,Data.Orth_diff.3.mf$Slot,sd, na.rm=T)
+s<-split(Data.Orth_diff.3.mf$First/Data.Orth_diff.3.mf$NSamp,Data.Orth_diff.3.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.Orth_diff.3.mf<-SD.Orth_diff.3.mf/sqrt(n)
+  
+SD.Pron_diff.1.mf <-tapply(Data.Pron_diff.1.mf$First/Data.Pron_diff.1.mf$NSamp,Data.Pron_diff.1.mf$Slot,sd, na.rm=T)
+s<-split(Data.Pron_diff.1.mf$First/Data.Pron_diff.1.mf$NSamp,Data.Pron_diff.1.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.Pron_diff.1.mf<-SD.Pron_diff.1.mf/sqrt(n)
+  
+SD.Pron_diff.3.mf <-tapply(Data.Pron_diff.3.mf$First/Data.Pron_diff.3.mf$NSamp,Data.Pron_diff.3.mf$Slot,sd, na.rm=T)
+s<-split(Data.Pron_diff.3.mf$First/Data.Pron_diff.3.mf$NSamp,Data.Pron_diff.3.mf$Slot)
+n<-sapply(s, function(dat) sum(!is.na(dat)))
+SE.Pron_diff.3.mf<-SD.Pron_diff.3.mf/sqrt(n)
+  
+  
+ 
+```
+
+In order to be able to use ggplot2 for plotting, we construct data frames to hold the newly calculated probabilities together with slot, condition and person and SE info:
+
+```{r dataframes}
+Slot=c(1:51)
+
+Frame.No_diff.1.mf<-data.frame(Slot=Slot, Prob=Point.No_diff.1.mf, SE=SE.No_diff.1.mf)
+Frame.No_diff.1.mf$MinSE<-Frame.No_diff.1.mf$Prob-Frame.No_diff.1.mf$SE
+Frame.No_diff.1.mf$MaxSE<-Frame.No_diff.1.mf$Prob+Frame.No_diff.1.mf$SE
+Frame.No_diff.1.mf$Pred<-prob.No_diff.1.mf
+Frame.No_diff.1.mf$Cond<-"NoDiff"
+Frame.No_diff.1.mf$Person<-1
+#Frame.No_diff.1.mf$Dir1<-1
+
+
+Frame.No_diff.3.mf<-data.frame(Slot=Slot, Prob=Point.No_diff.3.mf, SE=SE.No_diff.3.mf)
+Frame.No_diff.3.mf$MinSE<-Frame.No_diff.3.mf$Prob-Frame.No_diff.3.mf$SE
+Frame.No_diff.3.mf$MaxSE<-Frame.No_diff.3.mf$Prob+Frame.No_diff.3.mf$SE
+Frame.No_diff.3.mf$Pred<-prob.No_diff.3.mf
+Frame.No_diff.3.mf$Cond<-"NoDiff"
+Frame.No_diff.3.mf$Person<-3
+#Frame.No_diff.3.mf$Dir1<-1
+
+Frame.Pron_diff.1.mf<-data.frame(Slot=Slot, Prob=Point.Pron_diff.1.mf, SE=SE.Pron_diff.1.mf)
+Frame.Pron_diff.1.mf$MinSE<-Frame.Pron_diff.1.mf$Prob-Frame.Pron_diff.1.mf$SE
+Frame.Pron_diff.1.mf$MaxSE<-Frame.Pron_diff.1.mf$Prob+Frame.Pron_diff.1.mf$SE
+Frame.Pron_diff.1.mf$Pred<-prob.Pron_diff.1.mf
+Frame.Pron_diff.1.mf$Cond<-"PronDiff"
+Frame.Pron_diff.1.mf$Person<-1
+#Frame.Pron_diff.1.mf$Dir1<-1
+
+Frame.Pron_diff.3.mf<-data.frame(Slot=Slot, Prob=Point.Pron_diff.3.mf, SE=SE.Pron_diff.3.mf)
+Frame.Pron_diff.3.mf$MinSE<-Frame.Pron_diff.3.mf$Prob-Frame.Pron_diff.3.mf$SE
+Frame.Pron_diff.3.mf$MaxSE<-Frame.Pron_diff.3.mf$Prob+Frame.Pron_diff.3.mf$SE
+Frame.Pron_diff.3.mf$Pred<-prob.Pron_diff.3.mf
+Frame.Pron_diff.3.mf$Cond<-"PronDiff"
+Frame.Pron_diff.3.mf$Person<-3
+#Frame.Pron_diff.3.mf$Dir1<-1
+
+Frame.Orth_diff.1.mf<-data.frame(Slot=Slot, Prob=Point.Orth_diff.1.mf, SE=SE.Orth_diff.1.mf)
+Frame.Orth_diff.1.mf$MinSE<-Frame.Orth_diff.1.mf$Prob-Frame.Orth_diff.1.mf$SE
+Frame.Orth_diff.1.mf$MaxSE<-Frame.Orth_diff.1.mf$Prob+Frame.Orth_diff.1.mf$SE
+Frame.Orth_diff.1.mf$Pred<-prob.Orth_diff.1.mf
+Frame.Orth_diff.1.mf$Cond<-"OrthPronDiff"
+Frame.Orth_diff.1.mf$Person<-1
+#Frame.Orth_diff.1.mf$Dir1<-1
+
+Frame.Orth_diff.3.mf<-data.frame(Slot=Slot, Prob=Point.Orth_diff.3.mf, SE=SE.Orth_diff.3.mf)
+Frame.Orth_diff.3.mf$MinSE<-Frame.Orth_diff.3.mf$Prob-Frame.Orth_diff.3.mf$SE
+Frame.Orth_diff.3.mf$MaxSE<-Frame.Orth_diff.3.mf$Prob+Frame.Orth_diff.3.mf$SE
+Frame.Orth_diff.3.mf$Pred<-prob.Orth_diff.3.mf
+Frame.Orth_diff.3.mf$Cond<-"OrthPronDiff"
+Frame.Orth_diff.3.mf$Person<-3
+#Frame.Orth_diff.3.mf$Dir1<-1
+
+```
+
+Then concatenate all dataframes:
+
+```{r concat.dfs}
+
+Frame.Beng.mf<-rbind(Frame.No_diff.1.mf,Frame.No_diff.3.mf)
+Frame.Beng.mf<-rbind(Frame.Beng.mf,Frame.Pron_diff.1.mf)
+Frame.Beng.mf<-rbind(Frame.Beng.mf,Frame.Pron_diff.3.mf)
+Frame.Beng.mf<-rbind(Frame.Beng.mf,Frame.Orth_diff.1.mf)
+Frame.Beng.mf<-rbind(Frame.Beng.mf,Frame.Orth_diff.3.mf)
+
+Frame.Beng.mf$Person<-as.factor(Frame.Beng.mf$Person)
+
+#Frame.Beng.mf$MinSE<-Frame.Beng.mf$Prob-Frame.Beng.mf$SE
+#Frame.Beng.mf$MaxSE<-Frame.Beng.mf$Prob+Frame.Beng.mf$SE
+
+
+
+```
+
+
+
+```{r prettyplot}
+library(ggplot2)
+
+x_as_time<-unique(BengData$Time)
+
+ggplot(Frame.Beng.mf,aes(x=Slot, y=Prob))+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())+
+   geom_hline(yintercept=0.5, linetype="dotted")+
+  geom_point(aes(col=Cond, shape=Person), size=2)+
+  geom_line(aes(x=Slot, y=Pred, col=Cond,linetype=Person), size=1.2)+
+  geom_ribbon(data=Frame.No_diff.1.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#A9A9A9", alpha=0.4)+
+  geom_ribbon(data=Frame.No_diff.3.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#A9A9A9", alpha=0.4)+
+  geom_ribbon(data=Frame.Pron_diff.1.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#D5322F", alpha=0.4)+
+  geom_ribbon(data=Frame.Pron_diff.3.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#D5322F", alpha=0.4)+
+  geom_ribbon(data=Frame.Orth_diff.1.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#862A38", alpha=0.4)+
+  geom_ribbon(data=Frame.Orth_diff.3.mf,aes(ymin=MinSE, ymax=MaxSE), fill="#862A38", alpha=0.4)+
+  labs(title="Match-first trials", y="Probability of looking at first item", x="Time since fragment onset")+
+  coord_cartesian(xlim=c(3,51), ylim=c(0, 1))+
+  
+ scale_color_manual(values=c("#A9A9A9","#862A38", "#D5322F"))+
+  scale_x_continuous(breaks=c(0,10,20,30,40,50),labels=as.character(x_as_time[c(1,11,21,31,41,51)]))
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
